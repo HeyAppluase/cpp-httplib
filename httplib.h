@@ -219,7 +219,7 @@ public:
 
   std::function<void(const char *data, size_t data_len)> write;
   std::function<void()> done;
-  // TODO: std::function<bool()> is_alive;
+  std::function<bool()> is_writable;
 };
 
 using ContentProvider =
@@ -1929,6 +1929,7 @@ inline ssize_t write_content(Stream &strm, ContentProvider content_provider,
       written_length = strm.write(d, l);
     };
     data_sink.done = [&](void) { written_length = -1; };
+    data_sink.is_writable = [&](void) { return strm.is_writable(); };
 
     content_provider(offset, end_offset - offset, data_sink);
     if (written_length < 0) { return written_length; }
@@ -1959,6 +1960,7 @@ inline ssize_t write_content_chunked(Stream &strm,
       data_available = false;
       written_length = strm.write("0\r\n\r\n");
     };
+    data_sink.is_writable = [&](void) { return strm.is_writable(); };
 
     content_provider(offset, 0, data_sink);
 
@@ -3809,6 +3811,7 @@ inline bool Client::write_request(Stream &strm, const Request &req,
         auto written_length = strm.write(d, l);
         offset += written_length;
       };
+      data_sink.is_writable = [&](void) { return strm.is_writable(); };
 
       while (offset < end_offset) {
         req.content_provider(offset, end_offset - offset, data_sink);
@@ -3842,6 +3845,7 @@ inline std::shared_ptr<Response> Client::send_with_content_provider(
         req.body.append(data, data_len);
         offset += data_len;
       };
+      data_sink.is_writable = [&](void) { return true; };
 
       while (offset < content_length) {
         content_provider(offset, content_length - offset, data_sink);
